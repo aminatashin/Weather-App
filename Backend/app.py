@@ -29,13 +29,20 @@ init_db()
 def home():
     return """
     <h1>Welcome to the Weather App</h1>
-    <p>Use the following endpoints:</p>
-    <ul>
-        <li>Current Weather: <a href="/weather?location=Seattle">/weather?location=Seattle</a></li>
-        <li>5-Day Forecast: <a href="/forecast?location=Seattle">/forecast?location=Seattle</a></li>
-        <li>CRUD Operations: Use /save-weather, /get-weather-data, /update-weather/<id>, and /delete-weather/<id></li>
-    </ul>
+    <p>Enter a location to get weather data:</p>
+    <form action="/weather" method="get">
+        <label for="location">Current Weather:</label>
+        <input type="text" id="location" name="location" placeholder="Enter city">
+        <button type="submit">Get Weather</button>
+    </form>
+    <br>
+    <form action="/forecast" method="get">
+        <label for="location">5-Day Forecast:</label>
+        <input type="text" id="location" name="location" placeholder="Enter city">
+        <button type="submit">Get Forecast</button>
+    </form>
     """
+
 
 @app.route("/weather", methods=["GET"])
 def get_weather():
