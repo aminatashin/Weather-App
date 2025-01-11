@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 import requests
 import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 
 # Replace this with your actual OpenWeatherMap API key
-API_KEY = "your_actual_openweathermap_api_key"
+API_KEY = "a4ea97f73062de8ba2c2afd3bb51bef3"
 
 # Initialize the database
 def init_db():
@@ -15,8 +16,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS weather_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             location TEXT NOT NULL,
-            date_range TEXT,
-            weather_info TEXT
+            date_range TEXT NOT NULL,
+            weather_info TEXT NOT NULL
         )
     """)
     conn.commit()
@@ -26,7 +27,15 @@ init_db()
 
 @app.route("/")
 def home():
-    return "Welcome to the Weather App! Use /weather?location=<city> to get current weather data or /forecast?location=<city> for a 5-day forecast."
+    return """
+    <h1>Welcome to the Weather App</h1>
+    <p>Use the following endpoints:</p>
+    <ul>
+        <li>Current Weather: <a href="/weather?location=Seattle">/weather?location=Seattle</a></li>
+        <li>5-Day Forecast: <a href="/forecast?location=Seattle">/forecast?location=Seattle</a></li>
+        <li>CRUD Operations: Use /save-weather, /get-weather-data, /update-weather/<id>, and /delete-weather/<id></li>
+    </ul>
+    """
 
 @app.route("/weather", methods=["GET"])
 def get_weather():
@@ -40,7 +49,20 @@ def get_weather():
     if response.status_code != 200:
         return jsonify({"error": "Unable to fetch weather data"}), 500
 
-    return jsonify(response.json())
+    data = response.json()
+
+    # Format the response
+    formatted_data = {
+        "location": data.get("name"),
+        "temperature": data["main"].get("temp"),
+        "description": data["weather"][0].get("description"),
+        "humidity": data["main"].get("humidity"),
+        "pressure": data["main"].get("pressure"),
+        "wind_speed": data["wind"].get("speed"),
+        "country": data["sys"].get("country"),
+    }
+
+    return jsonify(formatted_data)
 
 @app.route("/forecast", methods=["GET"])
 def get_forecast():
@@ -50,21 +72,38 @@ def get_forecast():
 
     url = f"http://api.openweathermap.org/data/2.5/forecast?q={location}&appid={API_KEY}&units=metric"
     response = requests.get(url)
+
     if response.status_code != 200:
-        return jsonify({"error": "Unable to fetch forecast data"}), response.status_code
+        return jsonify({"error": "Unable to fetch forecast data"}), 500
 
-    return jsonify(response.json())
+    data = response.json()
 
-# CRUD Endpoints
+    # Simplify the 5-day forecast data
+    forecast_data = []
+    for entry in data["list"]:
+        forecast_data.append({
+            "datetime": entry["dt_txt"],
+            "temperature": entry["main"]["temp"],
+            "description": entry["weather"][0]["description"],
+        })
+
+    return jsonify({"location": data["city"]["name"], "country": data["city"]["country"], "forecast": forecast_data})
+
+# CRUD Operations
 @app.route("/save-weather", methods=["POST"])
 def save_weather():
     data = request.json
     location = data.get("location")
-    date_range = data.get("date_range", "N/A")  # Optional field
-    weather_info = data.get("weather_info", "{}")
+    date_range = data.get("date_range")
+    weather_info = data.get("weather_info")
 
-    if not location or not weather_info:
-        return jsonify({"error": "Location and weather_info are required"}), 400
+    if not location or not date_range or not weather_info:
+        return jsonify({"error": "Location, date_range, and weather_info are required"}), 400
+
+    try:
+        datetime.strptime(date_range, "%Y-%m-%d to %Y-%m-%d")  # Validate date range format
+    except ValueError:
+        return jsonify({"error": "Invalid date_range format. Use 'YYYY-MM-DD to YYYY-MM-DD'"}), 400
 
     conn = sqlite3.connect("weather.db")
     c = conn.cursor()
